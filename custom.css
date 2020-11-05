@@ -1,0 +1,22 @@
+.main-container {
+  max-width: 2400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+#TOC {
+  left: 0;
+  width: 160px;
+  right-margin: 0px;
+  overflow:auto;
+}
+body {
+  max-width: 1600px;
+  margin: auto;
+  line-height: 20px;
+}
+tr:nth-child(even) {
+  background: #FFF
+}
+tr:nth-child(odd) {
+  background: #EEE;
+}

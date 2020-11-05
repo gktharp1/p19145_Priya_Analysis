@@ -1,0 +1,80 @@
+---
+title: "p19145_Priya_Analysis"
+author: "GKT"
+date: '`r format(file.info("p19145_Priya_Analysis.Rmd")$ctime, "%Y-%M-%d")`'
+output:
+  html_document:
+    css: custom.css
+    code_folding: "hide"
+    toc: true
+    toc_float: true
+    toc_depth: 6
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, results = 'asis')
+
+library(knitr)
+library(DESeq2)
+library(tidyverse)
+library(ggforce)
+library(grid)
+library(DT)
+library(shiny)
+library(EnhancedVolcano)
+library(tools)
+library(ComplexHeatmap)
+library(gridExtra)
+library(openxlsx)
+
+## set pathRoot for appropriate connection method
+# from OSX mounted share file
+# pathRoot = "/Volumes/yerkes/genomelab/illumina/"
+
+# from server (sblab-wks02 RStudioServer)
+pathRoot = "/yerkes-cifs/runs/"
+
+# Extension path
+extPath = "home/gktharp/rsnippets/Rutils/GKTDESeq2Extentions.R"
+# load Extensions
+source(paste0(pathRoot,extPath))
+
+# analysisPath
+analysisPath = "200507_A00945_0026_BHT3K2DMXX/Unaligned/p19145_Priya/p19145_Priya_Analysis"
+setwd(paste0(pathRoot,analysisPath))
+
+```
+
+## Project Description
+
+# p19145_Priya
+
+From e-mail
+TDF: Biopsies at weeks   0(P/D),  2,  4(P/D),  6,  8(P/D), and 10  x  4animals = 36 samples
+
+Actual: Wk 9 not 10 and only 24 samples anyway
+
+
+```{r p19145_SampleData, cache=TRUE, echo=TRUE, results='asis'}
+
+metadataFile_p19145 = "AECOM TDF IVR PK samples for Dr. Bosinger- Oct to Dec 2019.xlsx"
+metasheets_p19145 <- getSheetNames(metadataFile_p19145)
+metadata_p19145 <- lapply(metasheets_p19145, function(sheet) {
+  read.xlsx(metadataFile_p19145, sheet)
+})
+metadata_p19145
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
