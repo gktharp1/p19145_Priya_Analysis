@@ -55,7 +55,7 @@ setwd(paste0(pathRoot,analysisPath))
 From e-mail
 TDF: Biopsies at weeks   0(P/D),  2,  4(P/D),  6,  8(P/D), and 10  x  4animals = 36 samples
 
-Actual: Wk 9 not 10 and only 24 samples anyway
+Actual: Labeled Wk 9 not 10 and only 24 samples (4 animals x 6 timepoints)
 
 
 ```{r p19145_SampleData, cache=TRUE, echo=TRUE, results='asis'}
@@ -66,15 +66,33 @@ metadata_p19145 <- lapply(metasheets_p19145, function(sheet) {
   read.xlsx(metadataFile_p19145, sheet)
 })
 metadata_p19145
+sampleTable_p19145 <- read.xlsx(metadataFile_p19145,"Sheet2",startRow = 2)
+sampleTable_p19145 <- mutate(sampleTable_p19145, fileName = lapply(sampleTable_p19145$CUID, function(cuid) {dir("AlaHtseq/",pattern = cuid)}), .before = Animal)
+sampleTable_p19145 <- mutate(sampleTable_p19145, SampleID = sub("_alaHtseq.txt","",sub("p19145_s0.._","",sampleTable_p19145$fileName)), .before = fileName)
+sampleTable_p19145$Animal <- as.factor(sampleTable_p19145$Animal)
+sampleTable_p19145$Week <- as.factor(paste0("Wk_",sampleTable_p19145$Wk))
 
 ```
 
-## Including Plots
+## Process
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+```{r p19145_Process, dependson="p20067_SampleData", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+ddsP19145 <- DESeqDataSetFromHTSeqCount(sampleTable_p19145, "AlaHtseq/", design = ~ Animal + Week)
+ddsP19145 <- DESeq(ddsP19145, parallel = TRUE)
+vstP19145 <- varianceStabilizingTransformation(ddsP19145, blind = FALSE, fitType = "parametric")
+
+pcaAllPC1vsPC4 <- pcaPlotGKT(vstP19145, intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
+pcaAllPC1vsPC4
+ggsave(pcaAllPC1vsPC4, filename = "PCA_QC_All_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaDrop1PC1vsPC4 <- pcaPlotGKT(vstP19145[,vstP19145$Animal != "FJ90"], intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC (Drop FJ90) PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
+pcaDrop1PC1vsPC4
+ggsave(pcaDrop1PC1vsPC4, filename = "PCA_QC_Drop1_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
