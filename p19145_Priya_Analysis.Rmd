@@ -21,6 +21,7 @@ library(knitr)
 library(DESeq2)
 library(tidyverse)
 library(ggforce)
+library(ggpubr)
 library(grid)
 library(DT)
 library(shiny)
@@ -91,6 +92,14 @@ ggsave(pcaAllPC1vsPC4, filename = "PCA_QC_All_PC1vsPC4_p19145.pdf", units = "in"
 pcaDrop1PC1vsPC4 <- pcaPlotGKT(vstP19145[,vstP19145$Animal != "FJ90"], intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC (Drop FJ90) PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
 pcaDrop1PC1vsPC4
 ggsave(pcaDrop1PC1vsPC4, filename = "PCA_QC_Drop1_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaDropS009PC1vsPC4 <- pcaPlotGKT(vstP19145[,-9], intgroup = c("Animal","Week"), xpc = 1, ypc = 3) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC (Drop FJ90 Wk 4) PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
+pcaDropS009PC1vsPC4
+ggsave(pcaDropS009PC1vsPC4, filename = "PCA_QC_DropS009_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaDrop4PC1vsPC4 <- pcaPlotGKT(vstP19145[,-c(4,7,9,14)], intgroup = c("Animal","Week"), xpc = 1, ypc = 3) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC (Drop FJ90 Wk 4) PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
+pcaDrop4PC1vsPC4
+ggsave(pcaDrop4PC1vsPC4, filename = "PCA_QC_Drop4_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
 
 
 ```
