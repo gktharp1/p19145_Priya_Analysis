@@ -11,7 +11,7 @@ output:
     toc_depth: 6
   pdf_document: default
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -27,9 +27,11 @@ library(DT)
 library(shiny)
 library(EnhancedVolcano)
 library(tools)
+library(circlize)
 library(ComplexHeatmap)
 library(gridExtra)
 library(openxlsx)
+library(EDASeq)
 
 ## set pathRoot for appropriate connection method
 # from OSX mounted share file
@@ -39,7 +41,8 @@ library(openxlsx)
 pathRoot = "/yerkes-cifs/runs/"
 
 # Extension path
-extPath = "home/gktharp/rsnippets/Rutils/GKTDESeq2Extentions.R"
+# extPath = "home/gktharp/rsnippets/Rutils/GKTDESeq2Extentions.R"
+extPath = "home/gktharp/gitrepos/Coding_Club/BulkRNASeq/gktharp/GKTDESeq2Extentions.R"
 # load Extensions
 source(paste0(pathRoot,extPath))
 
@@ -61,6 +64,18 @@ Actual: Labeled Wk 9 not 10 and only 24 samples (4 animals x 6 timepoints)
 
 ```{r p19145_SampleData, cache=TRUE, echo=TRUE, results='asis'}
 
+mappingStatsP19145 <- read_tsv("../p19145_Priya_MacaM_ERCC_MappingDistribution.txt")
+mappingCountsP19145 <- pivot_longer(mappingStatsP19145, cols = host:unmapped, names_to = "result", values_to = "count")
+mappingCountsP19145$result <- factor(mappingCountsP19145$result, c("host","PCYB","ERCC","noFeature","ambiguous","multimapping","unmapped"))
+mapPlotP19145 <- mappingCountsP19145 %>% filter(result != "ERCC" & result != "PCYB") %>% droplevels() %>% ggplot(aes(x = ID, y = count, fill = fct_rev(result))) + geom_bar(position = "stack", stat = "identity") + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + ggtitle("p19145_Priya Read Counts and Mapping")
+mapPlotP19145
+ggsave(mapPlotP19145, filename = "ReadCountsAndMapping_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+mappingCountsP19145Perc <- mutate(mappingCountsP19145, percent = (count/cum))
+mapPlotP19145Perc <- mappingCountsP19145Perc %>% filter(result != "ERCC" & result != "PCYB") %>% droplevels() %>% ggplot(aes(x = ID, y = percent, fill = fct_rev(result))) + geom_bar(position = "stack", stat = "identity") + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) + ggtitle("p19145_Priya Read % Mapping")
+mapPlotP19145Perc
+ggsave(mapPlotP19145Perc, filename = "ReadPercentageMapping_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
 metadataFile_p19145 = "AECOM TDF IVR PK samples for Dr. Bosinger- Oct to Dec 2019.xlsx"
 metasheets_p19145 <- getSheetNames(metadataFile_p19145)
 metadata_p19145 <- lapply(metasheets_p19145, function(sheet) {
@@ -73,6 +88,8 @@ sampleTable_p19145 <- mutate(sampleTable_p19145, SampleID = sub("_alaHtseq.txt",
 sampleTable_p19145$Animal <- as.factor(sampleTable_p19145$Animal)
 sampleTable_p19145$Week <- as.factor(paste0("Wk_",sampleTable_p19145$Wk))
 
+sampleTable_p19145
+
 ```
 
 ## Process
@@ -84,10 +101,57 @@ sampleTable_p19145$Week <- as.factor(paste0("Wk_",sampleTable_p19145$Wk))
 ddsP19145 <- DESeqDataSetFromHTSeqCount(sampleTable_p19145, "AlaHtseq/", design = ~ Animal + Week)
 ddsP19145 <- DESeq(ddsP19145, parallel = TRUE)
 vstP19145 <- varianceStabilizingTransformation(ddsP19145, blind = FALSE, fitType = "parametric")
+rldP19145 <- rlog(ddsP19145, blind = FALSE, fitType = "parametric")
 
-pcaAllPC1vsPC4 <- pcaPlotGKT(vstP19145, intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
-pcaAllPC1vsPC4
-ggsave(pcaAllPC1vsPC4, filename = "PCA_QC_All_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+weekMediansP119145 <- sapply(levels(rldP19145$Week), function(lvl) rowMedians(assay(rldP19145)[,rldP19145$Week == lvl]))
+rownames(weekMediansP119145) <- rownames(assay(rldP19145))
+
+rlogFromMedWk0 <- assay(rldP19145) - weekMediansP119145[, "Wk_0"]
+
+ddsP19145@colData
+
+ddsP19145Drop1Wk0 <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-which(colnames(ddsP19145) %in% c("N8KBA1P7-4"))], sampleTable_p19145[-which(colnames(ddsP19145) %in% c("N8KBA1P7-4")),], design = ~ Animal + Week)
+ddsP19145Drop1Wk0 <- DESeq(ddsP19145Drop1Wk0, parallel = TRUE)
+
+ddsP19145Drop1Wk2 <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-which(colnames(ddsP19145) %in% c("N8KBAODY-7"))], sampleTable_p19145[-which(colnames(ddsP19145) %in% c("N8KBAODY-7")),], design = ~ Animal + Week)
+ddsP19145Drop1Wk2 <- DESeq(ddsP19145Drop1Wk2, parallel = TRUE)
+
+ddsP19145Drop1Wk4 <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-which(colnames(ddsP19145) %in% c("N8KBB4Q2-9"))], sampleTable_p19145[-which(colnames(ddsP19145) %in% c("N8KBB4Q2-9")),], design = ~ Animal + Week)
+ddsP19145Drop1Wk4 <- DESeq(ddsP19145Drop1Wk4, parallel = TRUE)
+
+ddsP19145Drop1Wk6 <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-which(colnames(ddsP19145) %in% c("N8KBDE2W-14"))], sampleTable_p19145[-which(colnames(ddsP19145) %in% c("N8KBDE2W-14")),], design = ~ Animal + Week)
+ddsP19145Drop1Wk6 <- DESeq(ddsP19145Drop1Wk6, parallel = TRUE)
+
+ddsP19145Drop4alt <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-which(colnames(ddsP19145) %in% c("N8KBA1P7-4","N8KBAODY-7","N8KBB4Q2-9","N8KBDE2W-14"))], sampleTable_p19145[-which(colnames(ddsP19145) %in% c("N8KBA1P7-4","N8KBAODY-7","N8KBB4Q2-9","N8KBDE2W-14")),], design = ~ Animal + Week)
+
+ddsP19145Drop4 <- DESeqDataSetFromMatrix(counts(ddsP19145)[,-c(4,7,9,14)], sampleTable_p19145[-c(4,7,9,14),], design = ~ Animal + Week)
+ddsP19145Drop4 <- DESeq(ddsP19145Drop4, parallel = TRUE)
+
+
+```
+
+
+
+
+```{r p19145_PCA, dependson="p20067_SampleData", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+
+
+pcaAllPC1vsPC2 <- pcaPlotGKT(vstP19145, intgroup = c("Animal","Week"), xpc = 1, ypc = 2) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC2") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.5, alpha = 0.9, fill = NA, type = "norm") + stat_mean(aes(color = Week), shape = 11, size = 3)
+pcaAllPC1vsPC2
+ggsave(pcaAllPC1vsPC2, filename = "PCA_QC_All_PC1vsPC2_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaDrop4PC1vsPC2 <- pcaPlotGKT(vstP19145[,!(vstP19145$CUID %in% c("N8KBB4Q2","N8KBA1P7","N8KBAODY","N8KBDE2W"))], intgroup = c("Animal","Week"), xpc = 1, ypc = 2) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC2 Drop4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.5, alpha = 0.9, fill = NA, type = "norm") + stat_mean(aes(color = Week), shape = 11, size = 3)
+pcaDrop4PC1vsPC2
+ggsave(pcaDrop4PC1vsPC2, filename = "PCA_QC_Drop4_PC1vsPC2_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaDrop4PC1vsPC4 <- pcaPlotGKT(vstP19145[,!(vstP19145$CUID %in% c("N8KBB4Q2","N8KBA1P7","N8KBAODY","N8KBDE2W"))], intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC4 Drop4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.5, alpha = 0.9, fill = NA, type = "norm") + stat_mean(aes(color = Week), shape = 11, size = 3)
+pcaDrop4PC1vsPC4
+ggsave(pcaDrop4PC1vsPC4, filename = "PCA_QC_Drop4_PC1vsPC4_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
+pcaAllPC1vsPC4norm <- pcaPlotGKT(vstP19145, intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,16,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA, type = "norm") + stat_mean(aes(color = Week), shape = 4, size = 4)
+ggsave(pcaAllPC1vsPC4norm, filename = "PCA_QC_All_gkt_p19145.pdf", units = "in", width = 10, height = 8, scale = 1)
+
 
 pcaDrop1PC1vsPC4 <- pcaPlotGKT(vstP19145[,vstP19145$Animal != "FJ90"], intgroup = c("Animal","Week"), xpc = 1, ypc = 4) + theme_bw() + geom_point(aes(shape = Animal, color = Week), size = 3) + geom_path(aes(group=Animal, color=Week), size = 0.2, arrow = arrow(angle = 20, length = unit(6,"pt"), ends = "last", type = "closed")) + scale_shape_manual(values = c(15,17,18)) + scale_color_manual(values = c("#53B400","#C49A00","#F8766D","#A58AFF","#FB61D7","#00C094","#00B6EB","#377eb8")) + guides(fill = guide_legend(order = 1, override.aes = list(size = 3))) + geom_text_repel(aes(label=Animal), size = 2, hjust = 0.5, vjust = -1.5) + ggtitle("p19145 Priya QC (Drop FJ90) PCA PC1vsPC4") + stat_ellipse(mapping = aes(color = Week), geom = "polygon", level = 0.67, alpha = 0.9, fill = NA) + stat_mean(aes(color = Week), shape = 4, size = 4)
 pcaDrop1PC1vsPC4
@@ -104,4 +168,249 @@ ggsave(pcaDrop4PC1vsPC4, filename = "PCA_QC_Drop4_PC1vsPC4_p19145.pdf", units = 
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r p19145_resultsNames, echo=TRUE, warning=FALSE, cache=TRUE, results='asis'}
+
+p19145_resultsNames <- resultsNames(ddsP19145)
+p19145_resultsNames
+
+```
+
+
+
+
+```{r p19145_Wk2vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+res_Wk2vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
+summary(res_Wk2vsWk0_p19145)
+head(res_Wk2vsWk0_p19145[order(res_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk0_Wk2vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
+summary(resDrop1Wk0_Wk2vsWk0_p19145)
+head(resDrop1Wk0_Wk2vsWk0_p19145[order(resDrop1Wk0_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk2_Wk2vsWk0_p19145 <- results(ddsP19145Drop1Wk2, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk2, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
+summary(resDrop1Wk2_Wk2vsWk0_p19145)
+head(resDrop1Wk2_Wk2vsWk0_p19145[order(resDrop1Wk2_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop4_Wk2vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
+summary(resDrop4_Wk2vsWk0_p19145)
+head(resDrop4_Wk2vsWk0_p19145[order(resDrop4_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
+
+```
+
+```{r p19145_Wk4vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE, fig.keep='all'}
+
+res_Wk4vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_4_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_4","Wk_0"), thresh = 10))
+summary(res_Wk4vsWk0_p19145)
+head(res_Wk4vsWk0_p19145[order(res_Wk4vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk0_Wk4vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_4_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_4","Wk_0"), thresh = 10))
+summary(resDrop1Wk0_Wk4vsWk0_p19145)
+head(resDrop1Wk0_Wk4vsWk0_p19145[order(resDrop1Wk0_Wk4vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk4_Wk4vsWk0_p19145 <- results(ddsP19145Drop1Wk4, name = "Week_Wk_4_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk4, intgroup = "Week", comp = c("Wk_4","Wk_0"), thresh = 10))
+summary(resDrop1Wk4_Wk4vsWk0_p19145)
+head(resDrop1Wk4_Wk4vsWk0_p19145[order(resDrop1Wk4_Wk4vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop4_Wk4vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_4_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_4","Wk_0"), thresh = 10))
+summary(resDrop4_Wk4vsWk0_p19145)
+head(resDrop4_Wk4vsWk0_p19145[order(resDrop4_Wk4vsWk0_p19145$padj, na.last = TRUE),],11)
+
+```
+
+
+```{r p19145_Wk6vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+res_Wk6vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_6_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_6","Wk_0"), thresh = 10))
+summary(res_Wk6vsWk0_p19145)
+head(res_Wk6vsWk0_p19145[order(res_Wk6vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk0_Wk6vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_6_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_6","Wk_0"), thresh = 10))
+summary(resDrop1Wk0_Wk6vsWk0_p19145)
+head(resDrop1Wk0_Wk6vsWk0_p19145[order(resDrop1Wk0_Wk6vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk6_Wk6vsWk0_p19145 <- results(ddsP19145Drop1Wk6, name = "Week_Wk_6_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk6, intgroup = "Week", comp = c("Wk_6","Wk_0"), thresh = 10))
+summary(resDrop1Wk6_Wk6vsWk0_p19145)
+head(resDrop1Wk6_Wk6vsWk0_p19145[order(resDrop1Wk6_Wk6vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop4_Wk6vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_6_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_6","Wk_0"), thresh = 10))
+summary(resDrop4_Wk6vsWk0_p19145)
+head(resDrop4_Wk6vsWk0_p19145[order(resDrop4_Wk6vsWk0_p19145$padj, na.last = TRUE),],11)
+
+```
+
+```{r p19145_Wk8vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+res_Wk8vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_8_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_8","Wk_0"), thresh = 10))
+summary(res_Wk8vsWk0_p19145)
+head(res_Wk8vsWk0_p19145[order(res_Wk8vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk0_Wk8vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_8_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_8","Wk_0"), thresh = 10))
+summary(resDrop1Wk0_Wk8vsWk0_p19145)
+head(resDrop1Wk0_Wk8vsWk0_p19145[order(resDrop1Wk0_Wk8vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop4_Wk8vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_8_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_8","Wk_0"), thresh = 10))
+summary(resDrop4_Wk8vsWk0_p19145)
+head(resDrop4_Wk8vsWk0_p19145[order(resDrop4_Wk8vsWk0_p19145$padj, na.last = TRUE),],11)
+
+```
+
+
+```{r}
+
+#plotGene = "BMPR1B"
+#plotGene = "LCE3C"
+plotGene = "MFSD6L"
+res_Wk8vsWk0_p19145[plotGene,]
+resDrop1Wk0_Wk8vsWk0_p19145[plotGene,]
+resDrop4_Wk8vsWk0_p19145[plotGene,]
+
+plotCountsGKT(ddsP19145Drop4, gene = plotGene, intgroup = "Week") + geom_jitter() + theme_bw() + scale_y_log10()
+plotCountsGKT(ddsP19145Drop4, gene = plotGene, intgroup = "Week", returnData = TRUE)
+
+
+```
+
+
+
+
+
+```{r p19145_Wk9vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+res_Wk9vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_9_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_9","Wk_0"), thresh = 10))
+summary(res_Wk9vsWk0_p19145)
+head(res_Wk9vsWk0_p19145[order(res_Wk9vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop1Wk0_Wk9vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_9_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_9","Wk_0"), thresh = 10))
+summary(resDrop1Wk0_Wk9vsWk0_p19145)
+head(resDrop1Wk0_Wk9vsWk0_p19145[order(resDrop1Wk0_Wk9vsWk0_p19145$padj, na.last = TRUE),],11)
+
+resDrop4_Wk9vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_9_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_9","Wk_0"), thresh = 10))
+summary(resDrop4_Wk9vsWk0_p19145)
+head(resDrop4_Wk9vsWk0_p19145[order(resDrop4_Wk9vsWk0_p19145$padj, na.last = TRUE),],11)
+
+
+```
+
+```{r}
+
+res_Wk9vsWk0_p19145["LIPM",]
+resDrop1Wk0_Wk9vsWk0_p19145["LIPM",]
+resDrop4_Wk9vsWk0_p19145["LIPM",]
+
+
+```
+
+
+
+
+
+```{r p19145_Comp_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+summary(results(ddsP19145, name = "Week_Wk_2_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_2","Wk_0"))))
+summary(results(ddsP19145Drop4, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_2","Wk_0"))))
+
+summary(results(ddsP19145, name = "Week_Wk_4_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_4","Wk_0"))))
+summary(results(ddsP19145Drop4, name = "Week_Wk_4_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_4","Wk_0"))))
+
+summary(results(ddsP19145, name = "Week_Wk_6_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_6","Wk_0"))))
+summary(results(ddsP19145Drop4, name = "Week_Wk_6_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_6","Wk_0"))))
+
+summary(results(ddsP19145, name = "Week_Wk_8_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_8","Wk_0"))))
+summary(results(ddsP19145Drop4, name = "Week_Wk_8_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_8","Wk_0"))))
+
+summary(results(ddsP19145, name = "Week_Wk_9_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_9","Wk_0"))))
+summary(results(ddsP19145Drop4, name = "Week_Wk_9_vs_Wk_0", alpha = 0.05, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_9","Wk_0"))))
+
+```
+
+
+
+
+
+```{r p19145_Combined_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
+
+sigList_Wk2vsWk0 <- as.data.frame(res_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop1Wk0_Wk2vsWk0 <- as.data.frame(resDrop1Wk0_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop1Wk2_Wk2vsWk0 <- as.data.frame(resDrop1Wk2_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop4_Wk2vsWk0 <- as.data.frame(resDrop4_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+UpSet(make_comb_mat(list("Wk2vsWk0_All" = sigList_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk0" = sigListDrop1Wk0_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk2" = sigListDrop1Wk2_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop4" = sigListDrop4_Wk2vsWk0$GeneSymbol)))
+
+sigList_Wk4vsWk0 <- as.data.frame(res_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop1Wk0_Wk4vsWk0 <- as.data.frame(resDrop1Wk0_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop1Wk4_Wk4vsWk0 <- as.data.frame(resDrop1Wk4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigListDrop4_Wk4vsWk0 <- as.data.frame(resDrop4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+allCompWk4 <- dplyr::union(sigList_Wk4vsWk0, sigListDrop1Wk0_Wk4vsWk0) %>% dplyr::union(sigListDrop1Wk4_Wk4vsWk0) %>% dplyr::union(sigListDrop4_Wk4vsWk0)
+
+sigList_Wk6vsWk0 <- as.data.frame(res_Wk6vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigList_Wk8vsWk0 <- as.data.frame(res_Wk8vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+sigList_Wk9vsWk0 <- as.data.frame(res_Wk9vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+
+allSig <- union(sigList_Wk2vsWk0, sigList_Wk4vsWk0) %>% union(sigList_Wk6vsWk0) %>% union(sigList_Wk8vsWk0) %>% union(sigList_Wk9vsWk0)
+
+m = make_comb_mat(list("Wk2vsWk0" = sigList_Wk2vsWk0$GeneSymbol,"Wk4vsWk0" = sigList_Wk4vsWk0$GeneSymbol, "Wk6vsWk0" = sigList_Wk6vsWk0$GeneSymbol, "Wk8vsWk0" = sigList_Wk8vsWk0$GeneSymbol, "Wk9vsWk0" = sigList_Wk9vsWk0$GeneSymbol))
+UpSet(m)
+
+```
+
+```{r}
+
+mcomp4 <- make_comb_mat(list("Wk4vsWk0_All" = sigList_Wk4vsWk0$GeneSymbol, "Wk4vsWk0_drop1Wk0" = sigListDrop1Wk0_Wk4vsWk0$GeneSymbol, "Wk4vsWk0_drop1Wk4" = sigListDrop1Wk4_Wk4vsWk0$GeneSymbol, "Wk4vsWk0_drop4" = sigListDrop4_Wk4vsWk0$GeneSymbol))
+UpSet(mcomp4)
+
+
+
+```
+
+
+
+```{r p19145_Heatmaps, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE, fig.keep='all'}
+
+
+heatscale1 <- colorRamp2(c(-2,0,2), c("blue","#EEEEEE","red"))
+
+Heatmap(rlogFromMedWk0[sigList_Wk2vsWk0$GeneSymbol,], col = heatscale1, column_order = colnames(rldP19145), column_labels = rldP19145$Week)
+Heatmap(rlogFromMedWk0[extract_comb(m, "10000"),], col = heatscale1, column_order = colnames(rldP19145), column_labels = paste(rldP19145$Animal,rldP19145$Week,sep = "_"))
+Heatmap(rlogFromMedWk0[allSig$GeneSymbol,], col = heatscale1, column_order = colnames(rldP19145), column_labels = paste(rldP19145$Animal,rldP19145$Week,sep = "_"))
+
+Heatmap(rlogFromMedWk0[allCompWk4$GeneSymbol,-c(4,7,9,14)], col = heatscale1, column_order = colnames(rldP19145[,-c(4,7,9,14)]), column_labels = paste(rldP19145[,-c(4,7,9,14)]$Animal,rldP19145[,-c(4,7,9,14)]$Week,sep = "_"))
+
+
+```
+
+```{r}
+
+plotCountsGKT(ddsP19145, gene = "LIPF", intgroup = "Week") + geom_sina() + scale_y_log10() + theme_bw()
+plotCountsGKT(ddsP19145, gene = "MAGEE2", intgroup = "Week") + geom_sina() + scale_y_log10() + theme_bw()
+
+plotCountsGKT(ddsP19145, gene = "LOXL4", intgroup = "Week") + geom_sina() + theme_bw()
+plotCountsGKT(ddsP19145Drop4, gene = "LOXL4", intgroup = "Week") + geom_sina() + theme_bw()
+```
+
+```{r}
+
+plotCountsGKT(ddsP19145, gene = "HYDIN", intgroup = "Week") + geom_sina() + theme_bw()
+
+plotCountsGKT(ddsP19145Drop4, gene = "HYDIN", intgroup = "Week") + geom_jitter() + theme_bw()
+
+
+```
+
+
+
+
+
+
+
+
+
