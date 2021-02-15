@@ -107,6 +107,7 @@ weekMediansP119145 <- sapply(levels(rldP19145$Week), function(lvl) rowMedians(as
 rownames(weekMediansP119145) <- rownames(assay(rldP19145))
 
 rlogFromMedWk0 <- assay(rldP19145) - weekMediansP119145[, "Wk_0"]
+assay(ddsP19145, "rlogFromMedWk0") <- rlogFromMedWk0
 
 ddsP19145@colData
 
@@ -180,18 +181,22 @@ p19145_resultsNames
 
 ```{r p19145_Wk2vsWk0_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
 
+"# Wk2 vs Wk0 All Samples"
 res_Wk2vsWk0_p19145 <- results(ddsP19145, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
 summary(res_Wk2vsWk0_p19145)
 head(res_Wk2vsWk0_p19145[order(res_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
 
+"# Wk2 vs Wk0 Drop Wk0"
 resDrop1Wk0_Wk2vsWk0_p19145 <- results(ddsP19145Drop1Wk0, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk0, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
 summary(resDrop1Wk0_Wk2vsWk0_p19145)
 head(resDrop1Wk0_Wk2vsWk0_p19145[order(resDrop1Wk0_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
 
+"# Wk2 vs Wk0 Drop Wk4"
 resDrop1Wk2_Wk2vsWk0_p19145 <- results(ddsP19145Drop1Wk2, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop1Wk2, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
 summary(resDrop1Wk2_Wk2vsWk0_p19145)
 head(resDrop1Wk2_Wk2vsWk0_p19145[order(resDrop1Wk2_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
 
+"# Wk2 vs Wk0 Drop 4"
 resDrop4_Wk2vsWk0_p19145 <- results(ddsP19145Drop4, name = "Week_Wk_2_vs_Wk_0", alpha = 0.1, filter = maxMinFilter(ddsP19145Drop4, intgroup = "Week", comp = c("Wk_2","Wk_0"), thresh = 10))
 summary(resDrop4_Wk2vsWk0_p19145)
 head(resDrop4_Wk2vsWk0_p19145[order(resDrop4_Wk2vsWk0_p19145$padj, na.last = TRUE),],11)
@@ -330,38 +335,68 @@ summary(results(ddsP19145Drop4, name = "Week_Wk_9_vs_Wk_0", alpha = 0.05, filter
 
 ```{r p19145_Combined_Results, dependson="p19145_Process", cache=TRUE, echo=TRUE, results='asis', warning=FALSE}
 
-sigList_Wk2vsWk0 <- as.data.frame(res_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigList_Wk2vsWk0 <- as.data.frame(res_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop1Wk0_Wk2vsWk0 <- as.data.frame(resDrop1Wk0_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop1Wk0_Wk2vsWk0 <- as.data.frame(resDrop1Wk0_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop1Wk2_Wk2vsWk0 <- as.data.frame(resDrop1Wk2_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop1Wk2_Wk2vsWk0 <- as.data.frame(resDrop1Wk2_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop4_Wk2vsWk0 <- as.data.frame(resDrop4_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop4_Wk2vsWk0 <- as.data.frame(resDrop4_Wk2vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
 UpSet(make_comb_mat(list("Wk2vsWk0_All" = sigList_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk0" = sigListDrop1Wk0_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk2" = sigListDrop1Wk2_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop4" = sigListDrop4_Wk2vsWk0$GeneSymbol)))
 
-sigList_Wk4vsWk0 <- as.data.frame(res_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigList_Wk4vsWk0 <- as.data.frame(res_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop1Wk0_Wk4vsWk0 <- as.data.frame(resDrop1Wk0_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop1Wk0_Wk4vsWk0 <- as.data.frame(resDrop1Wk0_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop1Wk4_Wk4vsWk0 <- as.data.frame(resDrop1Wk4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop1Wk4_Wk4vsWk0 <- as.data.frame(resDrop1Wk4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigListDrop4_Wk4vsWk0 <- as.data.frame(resDrop4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop4_Wk4vsWk0 <- as.data.frame(resDrop4_Wk4vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
 allCompWk4 <- dplyr::union(sigList_Wk4vsWk0, sigListDrop1Wk0_Wk4vsWk0) %>% dplyr::union(sigListDrop1Wk4_Wk4vsWk0) %>% dplyr::union(sigListDrop4_Wk4vsWk0)
 
-sigList_Wk6vsWk0 <- as.data.frame(res_Wk6vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigList_Wk6vsWk0 <- as.data.frame(res_Wk6vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigList_Wk8vsWk0 <- as.data.frame(res_Wk8vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigListDrop4_Wk6vsWk0 <- as.data.frame(resDrop4_Wk6vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-sigList_Wk9vsWk0 <- as.data.frame(res_Wk9vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.05) %>% select(GeneSymbol)
+sigList_Wk8vsWk0 <- as.data.frame(res_Wk8vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
 
-allSig <- union(sigList_Wk2vsWk0, sigList_Wk4vsWk0) %>% union(sigList_Wk6vsWk0) %>% union(sigList_Wk8vsWk0) %>% union(sigList_Wk9vsWk0)
+sigListDrop4_Wk8vsWk0 <- as.data.frame(resDrop4_Wk8vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
+
+sigList_Wk9vsWk0 <- as.data.frame(res_Wk9vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
+
+sigListDrop4_Wk9vsWk0 <- as.data.frame(resDrop4_Wk9vsWk0_p19145) %>% rownames_to_column("GeneSymbol") %>% filter(!is.na(padj) & padj <= 0.1) %>% select(GeneSymbol)
+
+allSig <- dplyr::union(sigList_Wk2vsWk0, sigList_Wk4vsWk0) %>% dplyr::union(sigList_Wk6vsWk0) %>% dplyr::union(sigList_Wk8vsWk0) %>% dplyr::union(sigList_Wk9vsWk0)
+
+allSigDrop4 <- dplyr::union(sigListDrop4_Wk2vsWk0, sigListDrop4_Wk4vsWk0) %>% dplyr::union(sigListDrop4_Wk6vsWk0) %>% dplyr::union(sigListDrop4_Wk8vsWk0) %>% dplyr::union(sigListDrop4_Wk9vsWk0)
 
 m = make_comb_mat(list("Wk2vsWk0" = sigList_Wk2vsWk0$GeneSymbol,"Wk4vsWk0" = sigList_Wk4vsWk0$GeneSymbol, "Wk6vsWk0" = sigList_Wk6vsWk0$GeneSymbol, "Wk8vsWk0" = sigList_Wk8vsWk0$GeneSymbol, "Wk9vsWk0" = sigList_Wk9vsWk0$GeneSymbol))
 UpSet(m)
 
+mDrop4 = make_comb_mat(list("Wk2vsWk0" = sigListDrop4_Wk2vsWk0$GeneSymbol,"Wk4vsWk0" = sigListDrop4_Wk4vsWk0$GeneSymbol, "Wk6vsWk0" = sigListDrop4_Wk6vsWk0$GeneSymbol, "Wk8vsWk0" = sigListDrop4_Wk8vsWk0$GeneSymbol, "Wk9vsWk0" = sigListDrop4_Wk9vsWk0$GeneSymbol))
+UpSet(mDrop4)
+
+
 ```
+
+
+```{r}
+
+mcomp2 <- make_comb_mat(list("Wk2vsWk0_All" = sigList_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk0" = sigListDrop1Wk0_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk2" = sigListDrop1Wk2_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop4" = sigListDrop4_Wk2vsWk0$GeneSymbol))
+UpSet(mcomp2)
+
+mcomp2_Allvs4 <- make_comb_mat(list("Wk2vsWk0_All" = sigList_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop4" = sigListDrop4_Wk2vsWk0$GeneSymbol))
+UpSet(mcomp2_Allvs4)
+
+mcomp2_1sVs4 <- make_comb_mat(list("Wk2vsWk0_drop1Wk0" = sigListDrop1Wk0_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop1Wk2" = sigListDrop1Wk2_Wk2vsWk0$GeneSymbol, "Wk2vsWk0_drop4" = sigListDrop4_Wk2vsWk0$GeneSymbol))
+UpSet(mcomp2_1sVs4)
+
+
+```
+
+
+
 
 ```{r}
 
@@ -385,6 +420,22 @@ Heatmap(rlogFromMedWk0[allSig$GeneSymbol,], col = heatscale1, column_order = col
 
 Heatmap(rlogFromMedWk0[allCompWk4$GeneSymbol,-c(4,7,9,14)], col = heatscale1, column_order = colnames(rldP19145[,-c(4,7,9,14)]), column_labels = paste(rldP19145[,-c(4,7,9,14)]$Animal,rldP19145[,-c(4,7,9,14)]$Week,sep = "_"))
 
+Heatmap(rlogFromMedWk0[(dplyr::union(sigListDrop1Wk0_Wk2vsWk0, sigListDrop1Wk2_Wk2vsWk0) %>% dplyr::union(sigListDrop4_Wk2vsWk0))$GeneSymbol,], col = heatscale1, column_order = colnames(rldP19145[,]), column_labels = paste(rldP19145[,]$Animal,rldP19145[,]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[(dplyr::union(sigListDrop1Wk0_Wk2vsWk0, sigListDrop1Wk2_Wk2vsWk0) %>% dplyr::union(sigListDrop4_Wk2vsWk0))$GeneSymbol,ddsP19145$Week %in% c("Wk_0","Wk_2")],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(ddsP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]), column_labels = paste(rldP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]$Animal,rldP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[(dplyr::union(sigListDrop1Wk0_Wk2vsWk0, sigListDrop1Wk2_Wk2vsWk0) %>% dplyr::union(sigListDrop4_Wk2vsWk0))$GeneSymbol,ddsP19145$Week %in% c("Wk_0","Wk_2")],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(ddsP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]), column_labels = paste(rldP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]$Animal,rldP19145[,ddsP19145$Week %in% c("Wk_0","Wk_2")]$Week,sep = "_"))
+
+# Drop4 union of sig DE for all timepoints
+Heatmap(assay(ddsP19145[allSigDrop4$GeneSymbol,-c(4,7,9,14)],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(rldP19145[,-c(4,7,9,14)]), column_labels = paste(rldP19145[,-c(4,7,9,14)]$Animal,rldP19145[,-c(4,7,9,14)]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[sigListDrop4_Wk2vsWk0$GeneSymbol,-c(4,7,9:24)],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(rldP19145[,-c(4,7,9:24)]), column_labels = paste(rldP19145[,-c(4,7,9:24)]$Animal,rldP19145[,-c(4,7,9:24)]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[sigListDrop4_Wk4vsWk0$GeneSymbol,-c(4,5:9,13:24)],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(rldP19145[,-c(4,5:9,13:24)]), column_labels = paste(rldP19145[,-c(4,5:9,13:24)]$Animal,rldP19145[,-c(4,5:9,13:24)]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[sigListDrop4_Wk6vsWk0$GeneSymbol,-c(4,5:12,14,17:24)],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(rldP19145[,-c(4,5:12,14,17:24)]), column_labels = paste(rldP19145[,-c(4,5:12,14,17:24)]$Animal,rldP19145[,-c(4,5:12,14,17:24)]$Week,sep = "_"))
+
+Heatmap(assay(ddsP19145[sigListDrop4_Wk8vsWk0$GeneSymbol,-c(4,5:16,21:24)],"rlogFromMedWk0"), col = heatscale1, column_order = colnames(rldP19145[,-c(4,5:16,21:24)]), column_labels = paste(rldP19145[,-c(4,5:16,21:24)]$Animal,rldP19145[,-c(4,5:16,21:24)]$Week,sep = "_"))
 
 ```
 
